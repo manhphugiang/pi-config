@@ -1,0 +1,75 @@
+---
+- name: 1. Base Configuration (All Nodes)
+  hosts: cluster
+  become: yes
+  tasks:
+    - name: Install python3-apt
+      raw: apt-get update && apt-get install -y python3-apt
+
+    - name: Set Static IP on Ethernet (bridge100)
+      shell: |
+        nmcli con mod "Wired connection 1" \
+        ipv4.addresses "{{ new_ip }}/24" \
+        ipv4.gateway "192.168.2.1" \
+        ipv4.dns "8.8.8.8" \
+        ipv4.method manual
+      # This will cause a temporary disconnect. 
+      # On your second run, this task will do nothing.
+      ignore_errors: yes 
+
+    - name: Disable Swap
+      shell: |
+        dphys-swapfile swapoff
+        dphys-swapfile uninstall
+        update-rc.d dphys-swapfile remove
+      ignore_errors: yes
+      tags: k8s_prep
+
+    - name: Enable cgroups
+      replace:
+        path: /boot/firmware/cmdline.txt
+        regexp: '^([\w\s~=./#%+-]*)$'
+        replace: '\1 cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory'
+      register: boot_config
+      tags: k8s_prep
+
+    - name: Reboot if config changed
+      reboot:
+      when: boot_config.changed
+
+- name: 2. Install K3s on Master
+  hosts: masters
+  become: yes
+  tasks:
+    - name: Install Master bound to Ethernet
+      shell: |
+        curl -sfL https://get.k3s.io | sh -s - server \
+        --node-ip=192.168.2.44 \
+        --flannel-iface=eth0
+      args:
+        creates: /usr/local/bin/k3s
+
+    - name: Get Node Token
+      slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: master_token_encoded
+
+    - name: Set Token Fact
+      set_fact:
+        master_token: "{{ master_token_encoded['content'] | b64decode | trim }}"
+
+- name: 3. Install K3s on Workers
+  hosts: workers
+  become: yes
+  vars:
+    master_ip: "{{ hostvars[groups['masters'][0]]['ansible_host'] }}"
+    k3s_token: "{{ hostvars[groups['masters'][0]]['master_token'] }}"
+  tasks:
+    - name: Join Workers bound to Ethernet
+      shell: |
+        curl -sfL https://get.k3s.io | K3S_URL=https://{{ master_ip }}:6443 \
+        K3S_TOKEN={{ k3s_token }} sh -s - agent \
+        --node-ip={{ new_ip }} \
+        --flannel-iface=eth0
+      args:
+        creates: /usr/local/bin/k3s
