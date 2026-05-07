@@ -1,0 +1,30 @@
+- name: Install Ollama on Raspberry Pi hosts
+  hosts: cluster
+  become: yes
+  vars:
+    ollama_install_script: /tmp/ollama-install.sh
+
+  tasks:
+    - name: Ensure apt dependencies are present
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+        update_cache: yes
+
+    - name: Install Ollama using curl
+      shell: curl -fsSL https://ollama.com/install.sh | sh
+      args:
+        creates: /usr/local/bin/ollama
+
+    - name: Verify Ollama installation
+      command: /usr/local/bin/ollama --version
+      register: ollama_version
+      changed_when: false
+
+    - debug:
+        var: ollama_version.stdout

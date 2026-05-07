@@ -1,0 +1,29 @@
+- name: Pull Model from Ollama library on Raspberry Pi hosts
+  hosts: cluster
+  become: yes
+
+  tasks:
+    - name: Ensure apt dependencies are present
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+        update_cache: yes
+
+    - name: Start Ollama service
+      service:
+        name: ollama
+        state: started
+        enabled: yes
+
+    - name: Install Ollama using curl
+      shell: ollama pull qwen3:0.6b
+
+    - name: Verify Ollama installation
+      command: ollama list
+      register: ollama_list
+      changed_when: false
