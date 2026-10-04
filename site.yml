@@ -35,3 +35,42 @@
     - name: MANDATORY REBOOT
       reboot:
         reboot_timeout: 300
+      when: boot_config.changed
+
+- name: 2. Install K3s on Master
+  hosts: masters
+  become: yes
+  tasks:
+    - name: Install Master bound to Ethernet
+      shell: |
+        curl -sfL https://get.k3s.io | sh -s - server \
+        --node-ip="{{ ansible_host }}" \
+        --flannel-iface=eth0
+      args:
+        creates: /usr/local/bin/k3s
+
+    - name: Get Node Token
+      slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: master_token_encoded
+
+    - name: Set Token Fact
+      set_fact:
+        master_token: "{{ master_token_encoded['content'] | b64decode | trim }}"
+
+- name: 3. Install K3s on Workers
+  hosts: workers
+  become: yes
+  vars:
+    master_ip: "{{ hostvars[groups['masters'][0]]['ansible_host'] }}"
+    k3s_token: "{{ hostvars[groups['masters'][0]]['master_token'] }}"
+  tasks:
+    - name: Join Workers bound to Ethernet
+      shell: |
+        curl -sfL https://get.k3s.io | K3S_URL=https://{{ master_ip }}:6443 \
+        K3S_TOKEN={{ k3s_token }} sh -s - agent \
+        --node-ip="{{ ansible_host }}" \
+        --flannel-iface=eth0
+      args:
+        creates: /usr/local/bin/k3s
+
