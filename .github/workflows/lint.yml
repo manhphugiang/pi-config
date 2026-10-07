@@ -43,8 +43,12 @@ jobs:
       - name: Validate k8s base manifests
         run: |
           echo "Validating k8s directory with kubeconform..."
-          kubeconform -summary -verbose -schema-location default -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' k8s/
+          kubeconform -summary -verbose \
+            -ignore-filename-pattern 'kustomization\.yaml' \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            k8s/
 
       - name: Validate Kustomize builds
         run: |
-          kubectl kustomize k8s/base/ > /dev/null
+          kubectl kustomize k8s/base/ | kubeconform -summary -verbose
