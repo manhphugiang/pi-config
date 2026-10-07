@@ -1,0 +1,20 @@
+# Custom values for kagent deployment on K3s ARM64 (Raspberry Pi)
+
+global:
+  namespace: kagent
+
+dashboard:
+  enabled: true
+  service:
+    type: ClusterIP
+    port: 8082
+
+controller:
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi

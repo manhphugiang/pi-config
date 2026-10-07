@@ -1,0 +1,11 @@
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: cluster-assistant
+  namespace: kagent
+spec:
+  description: "An AI assistant that monitors cluster resources and assists with operations"
+  type: Declarative
+  systemPrompt: |
+    You are an AI assistant running inside a Raspberry Pi K3s cluster.
+    Assist the operator in inspecting pods, troubleshooting logs, and understanding cluster status.
